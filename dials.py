@@ -161,8 +161,9 @@ class DialList():
     def create_acciones(self):
         for i, accion in self.acciones.items():
             self.acciones[i] = getattr(self, accion)
-
-    acciones_de_tel = ["next", "back", "goto_next"]
+    acciones_msg = {"print", "prints"}
+    acciones_sm = {"next_dial", "prev_dial", "cur_dial"}
+    acciones_tel = {"next", "back", "goto_next", "next_dial"}
     # Los valores mas alla de los descritos son añadidos automaticamente.
     acciones = {
         # Muestra un mensaje ["print", texto]
@@ -251,12 +252,14 @@ class DialList():
                 for accion in result:
                     if accion[0] in self.acciones:
                         self.acciones[accion[0]](accion)
-                if not last[0] in self.acciones_de_tel:
+                accion = last[0]
+                if not accion in self.acciones_tel:
                     self.back([None, last[-1]])
 
-            elif first in self.acciones and first != "print":
+            elif first in self.acciones and not first in acciones_msg:
                 self.acciones[first](result)
-                if not first in self.acciones_de_tel:
+                accion = first
+                if not accion in self.acciones_tel:
                     self.back([None, last])
 
     def buscar_dial(self, position, cur_i = None, from_cur_i = None):
@@ -344,12 +347,20 @@ class DialList():
     def do_in_x_dial(self, result, mod):
         [accion, accion_2, *params] = result
         cur_i = params[-1]
-        if accion_2 in self.acciones:
+        invalid_acciones = [
+            *self.acciones_tel,
+            *self.acciones_sm,
+            *self.acciones_msg
+        ]
+        if accion_2 in self.acciones and not accion_2 in invalid_acciones:
             self.acciones[accion_2]([None, cur_i + mod, False, *params])
 
     def do_in_cur_dial(self, result): self.do_in_x_dial(result, 0)
 
-    def do_in_next_dial(self, result): self.do_in_x_dial(result, 1)
+    def do_in_next_dial(self, result):
+        cur_i = result[-1]
+        self.do_in_x_dial(result, 1)
+        self.acciones["next"]([None, 2, True, cur_i])
 
     def do_in_prev_dial(self, result): self.do_in_x_dial(result, -1)
 
@@ -378,8 +389,7 @@ dials = DialList(
     DialYRes("¿Rock o Pop?", [
         ["Rock", "rgaaaahhhh!"],
         ["Pop", [
-            ["next_dial", "add_opt", ["¡El lenguaje de la musica!", "ok..."]],
-            ["goto_next"]
+            ["next_dial", "add_opt", ["¡El lenguaje de la musica!", "ok..."]]
         ]]
     ]),
     DialYRes("¿espanol o ingles?", [

@@ -376,7 +376,7 @@ dials = DialList(
                                     ["next", -1, False]
                                 ]], ["nope",
                                     "sabia que era imposible que te gustase el"+
-                                    "boñato"
+                                    " boñato"
                                 ]
                             ]
                         )],

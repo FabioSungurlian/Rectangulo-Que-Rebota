@@ -300,13 +300,13 @@ class DialList():
         [action, pos, from_cur_i, opt, cur_i] = result
 
         dial = self.buscar_dial(pos, cur_i, from_cur_i)
-
         if dial: dial.swap_opt(*opt)
 
     def add_dial(self, result):
         [action, pos, from_cur_i, dial, cur_i] = result
 
         dial_2 = self.buscar_dial(pos, cur_i, from_cur_i)
+        pprint(dial_2)
         if dial_2 and self.es_dial(dial): self.dials.insert(pos, dial)
 
     def del_dial(self, result):

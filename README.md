@@ -28,6 +28,32 @@ en pos de un bien común... Sep, tipico plan de domingo por la noche.
 
 ---
 
+### ¿Como puedo usarlo?
+#### Descargar el programa
+##### Con GIT
+si tienes git instalado, podes usar:
+> git clone https://github.com/FabioSungurlian/Rectangulo-Que-Rebota.git
+
+##### Con ZIP
+Vas a `Rectangulo-Que-Rebota/ventana "Code"` y apretar el boton
+"Clone or download" y luego "Download ZIP"
+
+#### Descargas previas a correr el programa
+Primero tenes que instalar una de las versiones más recientes de python (3.6 en
+adelante) y luego tenes que instalar pygame usando pip,
+> python -m pip install pygame
+
+tip: asegurate de poner python dentro de las variables del entorno o sino la
+consola que estes usando no entendera que comando es "python"
+#### Correr el Programa
+solo tenes que escribir estando en una consola adentro de la carpeta del proyecto:
+> python main.py
+
+y el programa empezara a correr.
+
+
+---
+
 ### ¿Puedo colaborar o reportar un bug?
 No pienso aceptar colaboradores pero si puedes reportar bugs si lo deseas (dudo
 que lo vea de todos modos). Tampoco pienso abrir ni un patreon ni un kickstarter,

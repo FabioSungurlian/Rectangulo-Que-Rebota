@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<información>
+  <dialogos>
+    <dial>
+      <preg>
+        Bienvenido, este es un "experimento" que cree que es basicamente yo
+        jugando con el codigo en vez de tratar de crear algo util o entretenido.
+      </preg>
+      <opts>
+        <opt>
+          <elec>¿De que se trata?</elec>
+          <reacts>
+            <print>Te lo describiria como... una serpiente hecha 100% a base de
+            rectangulos que se van moviendo de izquierda a derecha y que vos
+            podes personalizar</print>
+            <swap_opt dial-pos="0" from-cur-i="True">
+              <opt-pos>¿De que se trata?</opt-pos>
+              <opt>
+                <elec>¿Puedo jugar o tengo que hacerte todas y cada una de las
+                preguntas?</elec>
+                <reacts>
+                  <print>Ok, puedes jugar. Pero primero tendras que customizar
+                  tu serpiente.</print>
+                  <goto_next />
+                </reacts>
+              </opt>
+            </swap_opt>
+          </reacts>
+        </opt>
+        <opt>
+          <elec>¿Como lo hiciste?</elec>
+          <reacts>Lo hice usando python y pygame mientras veia un tutorial de
+          pygame que, como era previo a crear un juego, borraba todo progreso
+          que se hubiese hecho en el capitulo anterior.</reacts>
+        </opt>
+        <opt>
+          <elec>¿Como llegue hasta aquí?</elec>
+          <rects>
+            <print>Entrando en el tren numero 16.5, ¿Como sino?</print>
+            <print is-user="True">¿Es esa una referencia a Harry Potter?</print>
+            <print>No lo digas muy alto, o vendra el.</print>
+            <print>¿Quien?</print>
+            <print>El Copyright</print>
+            <!-- Se te habia ocurrido una funcion para eliminar opciones en el
+            mismo dialogo sin tener que especificar las variables repetitivas-->
+            <del_opt>
+            </del_opt>
+          </reacts>
+        </opt>
+        <opt>
+          <elec>¿Tiene algun screamer?</elec>
+          <reacts>
+            <print>Si supiese como hacer un screamer en pygame, no estaría aquí
+            escribiendo codigo para presentar una serpiente hecha de
+            rectangulos</print>
+            <del_opt dial-pos="0" from-cur-i="True">
+              <opt-pos>¿Tiene algun screamer?</opt-pos>
+            </del_opt>
+          </reacts>
+        </opt>
+      </opts>
+    </dial>
+  </dialogos>
+</información>

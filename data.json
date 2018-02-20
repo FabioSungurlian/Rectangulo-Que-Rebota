@@ -1,0 +1,38 @@
+{
+  "dialogos": [{
+    "pregunta": "Bienvenido, este es un experimento creado usando python y pygame.",
+    "opciones":[[
+        "¿De que se trata el experimento", [
+        ["print", "Es mi primer contacto con pygame y se trata de algo
+          parecido a una serpiente creada con rectangulos"],
+        ["print", "Te advierto que no te emociones demasiado"],
+        ["change_dial", 0, true, null, "Ahora te preguntaras que es python y pygame..."],
+        ["swap_opt", 0, true, [0, [
+              "nope, ya quiero jugar.", [
+                ["print", "Perfecto, python es un lenguaje de program..."],
+                ["add_dial", 1, true, {
+                    "pregunta": "¿Que fue lo que dijiste?",
+                    "opciones": [
+                        ["No me interesa como lo hiciste", ["add_dial", 1, true, {
+                          "pregunta":"¿Ni siquiera quieres saber de que se trata...",
+                          "opciones": [
+                              ["NO", [
+                                  ["print", "bueno, empezemos el experimento
+                                    pero primero tendremos que customizarlo"]
+                                ]
+                              ]
+                            ]
+                          }
+                        ]
+                      ]
+                    ]
+                  }
+                ]
+              ]
+            ]
+          ]
+        ],
+        ["next", 0, true]
+        ]]]
+    }]
+}

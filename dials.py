@@ -480,10 +480,8 @@ dare un premio a la persona más aguafiestas:
                                             "encontrar este archivo eliminado"
                                         ), ["prints",
                                             ["¡¡Seguridad!!"],
-                                            [
-                                                "¡No esperen, yo simplemente..",
-                                                True
-                                            ],
+                                            ["¡No esperen, yo simplemente..",
+                                            True],
                                             ["Esto te pasa por hacker"]
                                         ]],
                                         ["Yo soy tu", [["prints",

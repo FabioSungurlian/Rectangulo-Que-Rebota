@@ -17,9 +17,9 @@ def check_type(item, tipos):
     msg = "usar un objeto del tipo: " + str( type(item) ) + " como si fuese" +\
     " del tipo "
     if isinstance(tipos, tuple):
-        msg += "o del tipo".join([ str(type(tipo)) for tipo in tipos ])
+        msg += "o del tipo".join([ str(type(tipo())) for tipo in tipos ])
     else:
-        msg += str(type(tipos))
+        msg += str(type(tipos()))
 
     return check(isinstance(item, tipos), msg)
 
@@ -111,7 +111,7 @@ class DialYRes():
     def change_dial(self, new_val, pos = None):
         if isinstance(pos, list):
 
-            if check_type(pos[0], str) and check_type(pos[1], str):
+            if check_type(pos[0], int) and check_type(pos[1], int):
 
                 pos_num_valid = check(
                     check_i(pos[0], self.ress) and check_i(pos[1], self.ress[0]),
@@ -220,8 +220,8 @@ class DialList():
         if "finalizado" != result: result[1]()
 
     def run_dials(self, dial_list):
-        for i, dial in enumerate(dial_list):
-
+        for dial in dial_list:
+            cur_i = self.dials.index(dial)
             result = dial.run()
 
             if isinstance(dial, Dial): sleep(self.interval)
@@ -232,13 +232,13 @@ class DialList():
                 if isinstance(first, list):
                     valida = True
                     for action in result:
-                        if not action[0] in self.acciones:
+                        if not action[0] in [*self.acciones, "temp"]:
                             valida = False
-                        action.append(i)
+                        action.append(cur_i)
                     if valida:
                         return result
-                elif first in self.acciones and first != "print":
-                    result.append(i)
+                elif first in self.acciones:
+                    result.append(cur_i)
                     return result
 
         return "finalizado"
@@ -278,9 +278,6 @@ class DialList():
             isinstance(dial, (DialYRes, Dial)),
             "usar algo como si fuese un dialogo pero siendo:" + str(type(dial))
         )
-
-    def buscar_con_cur_i(self, cur_i, from_cur_i):
-        pass
 
     def next(self, result):
         [action, goto_i, from_cur_i, cur_i] = result
@@ -354,6 +351,12 @@ class DialList():
             *self.acciones_sm,
             *self.acciones_msg
         ]
+        print(
+            (
+                "\nNuevo uso\n    cur_i: {0},"
+                "\n    cur_i + mod: {1}"
+            ).format(cur_i, cur_i + mod)
+        )
         if accion_2 in self.acciones and not accion_2 in invalid_acciones:
             self.acciones[accion_2]([None, cur_i + mod, False, *params])
 
@@ -365,24 +368,21 @@ class DialList():
 
 # Programas para testear y o correr programa abajo
 dials = DialList(
-    DialYRes("¿patata o boñato?", [
+    DialYRes("¿patata o boniato?", [
         ["patata", "¡que gran eleccion!"],
-        ["boñato", [["cur_dial", "swap_opt", ["boñato", [
-                "te dije que me gusta el boñato", [
+        ["boniato", [["cur_dial", "swap_opt", ["boniato", [
+                "te dije que me gusta el boniato", [
                         ["next_dial", "add_dial", DialYRes("¿Encerio?", [
                                 ["si", [
                                     ["prints", ["..."], ["..."]],
                                     ["next", -1, False]
-                                ]], ["nope",
-                                    "sabia que era imposible que te gustase el"+
-                                    " boñato"
-                                ]
-                            ]
-                        )],
+                                ]], ["nope",(
+                                    "sabia que era imposible que te gustase el"
+                                    " boniato"
+                        )]])],
                         ["goto_next"]
-                    ]
-                ]
-            ]],
+            ]]]],
+            ["cur_dial", "change_dial", [0, 1], "Sabía que mentías"]
         ]]
     ]),
     DialYRes("¿Rock o Pop?", [
@@ -399,13 +399,119 @@ dials = DialList(
                 ["¿Hay muchos tipos de patatas?", "Si, los hay"],
                 ["¿Estas dejando de lado a los degustadores de patatas?", "sep"],
                 ["¿Que?", [
-                    ["print", "acabas de fracasar el test de ingles"]#,
-                    #["next", 2, True]
+                    ["print", "acabas de fracasar el test de ingles"],
+                    ["next", 3, True]
                 ]],
                 ["se la respuesta pero no pienso decirla", [
-                    ["print", "Claro que la sabes, dare el test por fracasado"]#,
-                    #["next", 2, True]
+                    ["print", "Claro que la sabes, dare el test por fracasado"],
+                    ["next", 3, True]
                 ]]
+            ])],
+            ["add_dial", 2, True, DialYRes(
+                ("Would you put your hand inside magma for the purpouse of"
+                " killing all the friends of yours?"), [
+                    ["Si", [
+                        ["print", ("puede que no me entiendas o puede que"
+                        " seas un psicopata, pero no llamare a la policia.")],
+                        ["next", 2, True]
+                    ]],
+                    ["No", ("Lo estas haciendo muy bien por ahora, pero el "
+                    "siguiente sera muy dificil")]
+            ])],
+            ["add_dial", 3, True, DialYRes(
+                "Potato Chips?", [
+                    ["¡Potato Chips!", "¡Has completado el test!"],
+                    ["¿Potato Chips?", """¿Que es ese animo? por tu actitud te \
+dare un premio a la persona más aguafiestas:
+        ________________________
+        \                      /
+         \    Premio a la     /
+          \  aguafiesteria   /
+           \                /
+            ----------------
+           /                \         ¡Felecidades!
+          |   _/_/_   /|     |
+          |  _/_/_     |     |
+          |  / /      _|_    |
+           \                /
+             ______________
+
+                    """],
+                    ["Estoy a dieta", """Ahí te va un premio a la salud aburrida:
+        ________________________
+        \                      /
+         \    Premio a la     /
+          \  salud aburrida  /
+           \                /
+            ----------------
+           /                \         ¡Felecidades!
+          |   _/_/_   /|     |
+          |  _/_/_     |     |
+          |  / /      _|_    |
+           \                /
+             ______________
+
+                    """],
+                    ["¿Porque sigo jugando a esto?", [["next_dial", "add_dial",
+                        DialYRes("¿Osea que no sos yo?", [
+                                ["no", [
+                                    ["print", ("fuera ahora mismo de aca, no "
+                                        "permitire que jueges a esto ni hoy ni"
+                                        " nunca."
+                                    )],
+                                    ["next", -1, False]
+                                ]],
+                                [(
+                                    "si que lo soy, solo estoy testeando los "
+                                    "dialogos que yo hice."
+                                ), "uff, que susto me di"],
+                                ["¿Porque iba a serlo?", [["next_dial", "add_dial",
+                                    DialYRes((
+                                        "porque yo debi de haber eliminado todo"
+                                        " esto con el paso del tiempo y...\n\t"
+                                        "no me digas que todavia no he "
+                                        "eliminado esto"
+                                    ), [
+                                        ["Aparentemente no", ("ese me sirve de "
+                                        "mucho consuelo")],
+                                        [(
+                                            "Si que lo hiciste, solo que yo "
+                                            " piratie la base de datos para "
+                                            "encontrar este archivo eliminado"
+                                        ), ["prints",
+                                            ["¡¡Seguridad!!"],
+                                            [
+                                                "¡No esperen, yo simplemente..",
+                                                True
+                                            ],
+                                            ["Esto te pasa por hacker"]
+                                        ]],
+                                        ["Yo soy tu", [["prints",
+                                                ["¿Yo soy tu o yo soy yo?"],
+                                                ["Tu sos yo", True],
+                                                [("¿Pero no es lo mismo que yo "
+                                                  "soy yo?")],
+                                                ["no", True],
+                                                ["¿Porque?"],
+                                                ["porque lo digo yo", True],
+                                                ["¿Y yo?"],
+                                                ["tu no", True],
+                                                ["¿Entonces tu tampoco?"],
+                                                ["aaaahhhhhh"]
+                                            ],
+                                            ["goto_next"]
+                                        ]],
+                                        [(
+                                            "Tu me pediste que jugase a esto "
+                                            "ahora no me vengas de "
+                                            "sentimentalista"
+                                        ), "Lo shiento"]
+                                    ])],
+                                    ["goto_next"]
+                                ]]
+                        ])],
+                        ["goto_next"]
+                    ]]
             ])],
             ["goto_next"]
         ]]
@@ -414,4 +520,5 @@ dials = DialList(
         ["Ya era hora...", "Alla vamos!"]
     ]),
 )
+
 dials.run()

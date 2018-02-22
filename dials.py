@@ -232,7 +232,7 @@ class DialList():
                 if isinstance(first, list):
                     valida = True
                     for action in result:
-                        if not action[0] in [*self.acciones, "temp"]:
+                        if not action[0] in self.acciones:
                             valida = False
                         action.append(cur_i)
                     if valida:

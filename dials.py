@@ -1,6 +1,7 @@
 from time import sleep
 from pprint import pprint
 from functools import reduce
+
 import sys
 import os
 # Importaciones arriba
@@ -37,11 +38,12 @@ class DialYRes():
     def __setitem__(self, key, val):
         setattr(self, key, val)
 
-    def __init__(self, dial, ress, input_sign = None, print_sign = None):
+    def __init__(self, dial, ress, **options):
         self.dial = dial
         self.ress = ress
-        self.input_sign = " usuario ->>" if input_sign == None else input_sign
-        self.print_sign = " bot ->>" if print_sign == None else print_sign
+        self.input_sign = options.get("input_sign", " usuario ->>")
+        self.print_sign = options.get("print_sign", " bot ->>")
+        self.rewind = options.get("rewind", True)
 
     def run(self):
         self.options = []
@@ -60,14 +62,23 @@ class DialYRes():
             print() # añade un espacio entre posibles respuestas y "usuario ->>"
 
             if len(self.options) != 1:
-                user_i = int( input(self.input_sign) )
-                valid_i = len(self.ress) >= user_i
-                match = self.ress[user_i - 1] if valid_i else err_msg
+                user_i = input(self.input_sign)
+                valid_vals = map(lambda item: str(item), range(1, 20))
+
+                valid_type = user_i in valid_vals
+                if valid_type:
+                    user_i = int(user_i)
+                    valid_i = len(self.ress) >= user_i
+                else:
+                    valid_i = False
+
+                match = self.ress[user_i - 1] if valid_i else [None, err_msg]
                 sys.stdout.write("\033[F{} {}\n".format(self.input_sign, match[0]))
                 match = match[1]
             else:
                 input(self.input_sign + " " + self.ress[0][0])
                 match = self.ress[0][1]
+
             if isinstance(match, str):
                 self.output(match, "bot")
             elif isinstance(match, list):
@@ -75,8 +86,7 @@ class DialYRes():
             elif callable(match):
                 match()
             else:
-                print(
-                    "Lo sentimos mucho, tuve un error en el que la respuesta",
+                print("Lo sentimos mucho, tuve un error en el que la respuesta",
                     "que te trete de dar es de un tipo invalido", type(match)
                 )
             if match == err_msg:
@@ -221,6 +231,7 @@ class DialList():
 
     def run_dials(self, dial_list):
         for dial in dial_list:
+            self.dial = dial
             cur_i = self.dials.index(dial)
             result = dial.run()
 
@@ -256,7 +267,10 @@ class DialList():
             elif first in self.acciones: self.acciones[first](result)
             else: return None
             if not result[0] in self.acciones_tel:
-                self.back([None, result[-1]])
+                getattr(
+                    self,
+                    "back" if self.dial.rewind else "goto_next"
+                )([None, result[-1]])
 
 
     def buscar_dial(self, position, cur_i = None, from_cur_i = None):
@@ -351,12 +365,6 @@ class DialList():
             *self.acciones_sm,
             *self.acciones_msg
         ]
-        print(
-            (
-                "\nNuevo uso\n    cur_i: {0},"
-                "\n    cur_i + mod: {1}"
-            ).format(cur_i, cur_i + mod)
-        )
         if accion_2 in self.acciones and not accion_2 in invalid_acciones:
             self.acciones[accion_2]([None, cur_i + mod, False, *params])
 
@@ -387,11 +395,9 @@ dials = DialList(
     ]),
     DialYRes("¿Rock o Pop?", [
         ["Rock", "rgaaaahhhh!"],
-        ["Pop", [
-            ["next_dial", "add_opt", ["¡El lenguaje de la musica!", "ok..."]],
-            ["goto_next"]
-        ]]
-    ]),
+        ["Pop", ["next_dial", "add_opt",
+            ["¡El lenguaje de la musica!", "ok..."]]
+    ]], rewind=False),
     DialYRes("¿espanol o ingles?", [
         ["espanol", "pregunta tonta, no?"],
         ["ingles", [["next_dial", "add_dial", DialYRes(
@@ -452,68 +458,61 @@ dare un premio a la persona más aguafiestas:
              ______________
 
                     """],
-                    ["¿Porque sigo jugando a esto?", [["next_dial", "add_dial",
+                    ["¿Porque sigo jugando a esto?", ["next_dial", "add_dial",
                         DialYRes("¿Osea que no sos yo?", [
-                                ["no", [
-                                    ["print", ("fuera ahora mismo de aca, no "
-                                        "permitire que jueges a esto ni hoy ni"
-                                        " nunca."
-                                    )],
-                                    ["next", -1, False]
-                                ]],
-                                [(
-                                    "si que lo soy, solo estoy testeando los "
-                                    "dialogos que yo hice."
-                                ), "uff, que susto me di"],
-                                ["¿Porque iba a serlo?", [["next_dial", "add_dial",
-                                    DialYRes((
-                                        "porque yo debi de haber eliminado todo"
-                                        " esto con el paso del tiempo y...\n\t"
-                                        "no me digas que todavia no he "
-                                        "eliminado esto"
-                                    ), [
-                                        ["Aparentemente no", ("ese me sirve de "
-                                        "mucho consuelo")],
-                                        [(
-                                            "Si que lo hiciste, solo que yo "
-                                            " piratie la base de datos para "
-                                            "encontrar este archivo eliminado"
-                                        ), ["prints",
-                                            ["¡¡Seguridad!!"],
-                                            ["¡No esperen, yo simplemente..",
+                            ["no", [
+                                ["print", ("fuera ahora mismo de aca, no "
+                                    "permitire que jueges a esto ni hoy ni"
+                                    " nunca."
+                                )],
+                                ["next", -1, False]
+                            ]],
+                            [(
+                                "si que lo soy, solo estoy testeando los "
+                                "dialogos que yo hice."
+                            ), "uff, que susto me di"],
+                            ["¿Porque iba a serlo?", [["next_dial", "add_dial",
+                                DialYRes((
+                                    "porque yo debi de haber eliminado todo"
+                                    " esto con el paso del tiempo y...\n\t"
+                                    "no me digas que todavia no he "
+                                    "eliminado esto"
+                                ), [
+                                    ["Aparentemente no", ("ese me sirve de "
+                                    "mucho consuelo")],
+                                    [(
+                                        "Si que lo hiciste, solo que yo "
+                                        " piratie la base de datos para "
+                                        "encontrar este archivo eliminado"
+                                    ), ["prints",
+                                        ["¡¡Seguridad!!"],
+                                        ["¡No esperen, yo simplemente..",
                                             True],
-                                            ["Esto te pasa por hacker"]
-                                        ]],
-                                        ["Yo soy tu", [["prints",
-                                                ["¿Yo soy tu o yo soy yo?"],
-                                                ["Tu sos yo", True],
-                                                [("¿Pero no es lo mismo que yo "
-                                                  "soy yo?")],
-                                                ["no", True],
-                                                ["¿Porque?"],
-                                                ["porque lo digo yo", True],
-                                                ["¿Y yo?"],
-                                                ["tu no", True],
-                                                ["¿Entonces tu tampoco?"],
-                                                ["aaaahhhhhh"]
-                                            ],
-                                            ["goto_next"]
-                                        ]],
-                                        [(
-                                            "Tu me pediste que jugase a esto "
-                                            "ahora no me vengas de "
-                                            "sentimentalista"
-                                        ), "Lo shiento"]
-                                    ])],
-                                    ["goto_next"]
-                                ]]
-                        ])],
-                        ["goto_next"]
+                                        ["Esto te pasa por hacker"]
+                                    ]],
+                                    ["Yo soy tu", ["prints",
+                                        ["¿Yo soy tu o yo soy yo?"],
+                                        ["Tu sos yo", True],
+                                        [("¿Pero no es lo mismo que yo soy yo?")],
+                                        ["no", True],
+                                        ["¿Porque?"],
+                                        ["porque lo digo yo", True],
+                                        ["¿Y yo?"],
+                                        ["tu no", True],
+                                        ["¿Entonces tu tampoco?"],
+                                        ["aaaahhhhhh"]
+                                    ]],
+                                    [(
+                                        "Tu me pediste que jugase a esto "
+                                        "ahora no me vengas de "
+                                        "sentimentalista"
+                                    ), "Lo shiento"]
+                        ], rewind=False)]
                     ]]
-            ])],
-            ["goto_next"]
+                ], rewind=False)]
+            ]], rewind=False)
         ]]
-    ]),
+    ]], rewind=False),
     DialYRes("dejemonos de hablar y empezemos con el juego", [
         ["Ya era hora...", "Alla vamos!"]
     ]),

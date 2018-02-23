@@ -18,9 +18,11 @@ def check_type(item, tipos):
     msg = "usar un objeto del tipo: " + str( type(item) ) + " como si fuese" +\
     " del tipo "
     if isinstance(tipos, tuple):
-        msg += "o del tipo".join([ str(type(tipo())) for tipo in tipos ])
+        msg += "o del tipo".join([
+            str(type(tipo() if callable(tipo) else tipo)) for tipo in tipos
+        ])
     else:
-        msg += str(type(tipos()))
+        msg += str(type(tipos() if callable(tipos) else tipos))
 
     return check(isinstance(item, tipos), msg)
 
@@ -103,47 +105,40 @@ class DialYRes():
         sign = self.print_sign if outputter == "bot" else self.input_sign
         print(sign + " " + text)
 
-    def add_opt(self, option, position = None):
-        pos = position if position != None else len(self.ress)
-        if check_type(option, list) and (not option in self.ress):
-            self.ress.insert(pos, option)
+    def add_opt(self, opt, position = None):
+        opts = self.ress
+        pos = len(opts) if position == None else position
+        if check_type(opt, list) and (not opt in opts):
+            opts.insert(pos, opt)
 
-    def del_opt(self, option):
-        opciones = self.ress
-        if check_type(option, (int, str)):
-            if isinstance(option, str):
-                option_2 = opciones.index(list(
-                    filter(lambda item: item[0] == option, opciones)
+    def del_opt(self, opt):
+        opts = self.ress
+        if check_type(opt, (int, str)):
+            if isinstance(opt, str):
+                opt_i = opts.index(list(
+                    filter(lambda item: item[0] == opt, opts)
                 )[0])
-            elif check_i(option, opciones):
-                option_2 = option
-            opciones.pop(option_2)
-            return [option_2]
+            elif check_i(opt, opts):
+                opt_i = opt
+            opt_arr = opts.pop(opt_i)
+            return [opt_i, opt_arr]
 
-    def swap_opt(self, position, option):
-        pos = self.del_opt(position)[0]
-        self.add_opt(option, pos)
+    def swap_opt(self, position, opt):
+        pos, deleted_opt = self.del_opt(position)
+        self.add_opt(opt, pos)
+        return [pos, deleted_opt]
 
     def change_dial(self, new_val, pos = None):
-        if isinstance(pos, list):
-
-            if check_type(pos[0], int) and check_type(pos[1], int):
-
-                pos_num_valid = check(
-                    check_i(pos[0], self.ress) and check_i(pos[1], self.ress[0]),
-                    'cambiar un valor de las opciones que se sale de los ' +
-                    'posibles'
-                )
-
-                if pos_num_valid:
-                    self.ress[pos[0]][pos[1]] = new_val
-
-        elif isinstance(pos, None):
-            self.dial = new_val
-
-        else:
-            print("cambiar el dialogo en una posicion del tipo: " +
-            str(type(pos)))
+        opts = self.ress
+        if check_type(pos, (list, None)):
+            if isinstance(pos, list) and check_i(pos[0], opts) and \
+            check_i(pos[1], opts[0]):
+                old_val = opts[pos[0]][pos[1]]
+                opts[pos[0]][pos[1]] = new_val
+            elif isinstance(pos, None):
+                old_val = self.dial
+                self.dial = new_val
+            return [pos, old_val]
 
 
 # Un dialogo que es solamente es texto
@@ -181,6 +176,12 @@ class DialList():
     acciones_msg = {"print", "prints"}
     acciones_sm = {"next_dial", "prev_dial", "cur_dial"}
     acciones_tel = {"next", "back", "goto_next"}
+    opuestas = {
+        "add_dial": lambda result: self.acciones["del_dial"](result[:-1]),
+        "add_opt": lambda result: self.acciones["del_opt"](
+            *result[:-2], result[4][0]
+        )
+    }
     # Los valores mas alla de los descritos son añadidos automaticamente.
     acciones = {
         # Muestra un mensaje ["print", texto]
@@ -248,8 +249,8 @@ class DialList():
                 first = result[0]
 
                 if isinstance(first, list):
-                    value_in_acciones = lambda el: el[0] in self.acciones
-                    valida = all(map(value_in_acciones, result))
+                    in_acciones = lambda el: el[0] in self.acciones
+                    valida = all(map(in_acciones, result))
 
                     if valida:
                         return [[*val, cur_i] for val in result]
@@ -260,19 +261,20 @@ class DialList():
 
     def ejecutar_accion(self, result):
         first = result[0]
+        acts = self.acciones
+        ejecutar = lambda act: acts[act[0]](act)
         # El modelo de lista es: [acción, acción_params...]
         if check_type(result, list):
             if isinstance(first, list):
                 for accion in result:
-                    if accion[0] in self.acciones:
-                        self.acciones[accion[0]](accion)
+                    ejecutar(accion)
                 result = result[-1]
-
-            elif first in self.acciones: self.acciones[first](result)
+            elif first in acts:
+                ejecutar(result)
             else: return None
+
             if not result[0] in self.acciones_tel:
-                getattr(
-                    self,
+                getattr(self,
                     "back" if self.dial.rewind else "goto_next"
                 )([None, result[-1]])
 
@@ -327,14 +329,16 @@ class DialList():
         [action, pos, from_cur_i, opt_pos, cur_i] = result
 
         dial = self.buscar_dial(pos, cur_i, from_cur_i)
-        if dial: dial.del_opt(opt_pos)
+        if dial:
+            return dial.del_opt(opt_pos)
 
     def swap_option(self, result):
         # opt = [opt_pos, opt_content]
         [action, pos, from_cur_i, opt, cur_i] = result
 
         dial = self.buscar_dial(pos, cur_i, from_cur_i)[0]
-        if dial: dial.swap_opt(*opt)
+        if dial:
+            return dial.swap_opt(*opt)
 
     def add_dial(self, result, temp=None):
         [action, pos, from_cur_i, dial, cur_i] = result
@@ -345,14 +349,17 @@ class DialList():
 
     def del_dial(self, result):
         [action, pos, from_cur_i, cur_i] = result
-        dial = self.buscar_dial(pos, cur_1, from_cur_i)[0]
+        dial, pos = self.buscar_dial(pos, cur_i, from_cur_i)
 
-        if dial: self.dials.remove(dial)
+        if dial:
+            self.dials.remove(dial)
+            return [dial, pos]
 
     def swap_dial(self, result):
         [action, pos, from_cur_i, dial, cur_i] = result
-        self.del_dial(action, pos, from_cur_i, cur_i)
+        deleted_dial = self.del_dial(action, pos, from_cur_i, cur_i)
         self.add_dial(result)
+        return deleted_dial
 
     def change_dial(self, result):
         [action, dial_pos, from_cur_i, attr_pos, new_val, cur_i] = result

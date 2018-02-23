@@ -73,7 +73,13 @@ class DialYRes():
                     valid_i = False
 
                 match = self.ress[user_i - 1] if valid_i else [None, err_msg]
-                sys.stdout.write("\033[F{} {}\n".format(self.input_sign, match[0]))
+
+                if match[1] == err_msg:
+                    user_opt = " Error -"
+                else:
+                    user_opt = " {} {}\n".format(self.input_sign, match[0])
+
+                sys.stdout.write("\033[F" + user_opt)
                 match = match[1]
             else:
                 input(self.input_sign + " " + self.ress[0][0])
@@ -171,6 +177,7 @@ class DialList():
     def create_acciones(self):
         for i, accion in self.acciones.items():
             self.acciones[i] = getattr(self, accion)
+
     acciones_msg = {"print", "prints"}
     acciones_sm = {"next_dial", "prev_dial", "cur_dial"}
     acciones_tel = {"next", "back", "goto_next"}
@@ -241,16 +248,13 @@ class DialList():
                 first = result[0]
 
                 if isinstance(first, list):
-                    valida = True
-                    for action in result:
-                        if not action[0] in self.acciones:
-                            valida = False
-                        action.append(cur_i)
+                    value_in_acciones = lambda el: el[0] in self.acciones
+                    valida = all(map(value_in_acciones, result))
+
                     if valida:
-                        return result
+                        return [[*val, cur_i] for val in result]
                 elif first in self.acciones:
-                    result.append(cur_i)
-                    return result
+                    return [*result, cur_i]
 
         return "finalizado"
 
@@ -275,17 +279,31 @@ class DialList():
 
     def buscar_dial(self, position, cur_i = None, from_cur_i = None):
         pos = position
-        if from_cur_i:
-            pos += cur_i
+        match = False
 
-        if check_type(pos, int): num_valid = check(
-                check_i(pos, self.dials),
-                'buscar el elemento "numero" '+ str(pos + 1) +'de una lista...'
-            )
-        return [
-            self.dials[pos] if check_type(pos, int) and num_valid else False,
-            pos
-        ]
+        if isinstance(pos, int):
+            if from_cur_i == True:
+                pos += cur_i
+
+            if check_i(pos, self.dials):
+                match = self.dials[pos]
+
+        elif isinstance(pos, str):
+            matches = list(filter(lambda el: el.dial, self.dials))
+
+            if len(matches) == 1:
+                match = matches[0]
+            else:
+                print(
+                    "Trate de buscar un dialogo por mi pregunta, cuando hay",
+                    "varios dialogos o ningun dialogo con esa pregunta"
+                )
+
+        elif isinstance(pos, DialYRes):
+            match = pos
+
+        pos = self.dials.index(match)
+        return [match, pos]
 
     def es_dial(self, dial):
         return check(
@@ -296,7 +314,6 @@ class DialList():
     def next(self, result):
         [action, goto_i, from_cur_i, cur_i] = result
         dial = self.buscar_dial(goto_i, cur_i, from_cur_i)
-
         if dial[0]:
             self.dial_list = self.dials[dial[1]:]
 
@@ -319,11 +336,12 @@ class DialList():
         dial = self.buscar_dial(pos, cur_i, from_cur_i)[0]
         if dial: dial.swap_opt(*opt)
 
-    def add_dial(self, result):
+    def add_dial(self, result, temp=None):
         [action, pos, from_cur_i, dial, cur_i] = result
 
         dial_2 = self.buscar_dial(pos, cur_i, from_cur_i)
-        if dial_2[0] and self.es_dial(dial): self.dials.insert(dial_2[1], dial)
+        if dial_2[0] and self.es_dial(dial):
+            self.dials.insert(dial_2[1], dial)
 
     def del_dial(self, result):
         [action, pos, from_cur_i, cur_i] = result
@@ -373,6 +391,9 @@ class DialList():
     def do_in_next_dial(self, result): self.do_in_x_dial(result, 1)
 
     def do_in_prev_dial(self, result): self.do_in_x_dial(result, -1)
+
+    def temp(self, result):
+        [accion, accion_2, *params] = result
 
 # Programas para testear y o correr programa abajo
 dials = DialList(
@@ -514,7 +535,12 @@ dare un premio a la persona más aguafiestas:
         ]]
     ]], rewind=False),
     DialYRes("dejemonos de hablar y empezemos con el juego", [
-        ["Ya era hora...", "Alla vamos!"]
+        ["Ya era hora...", [
+            ["print", "Alla vamos!"],
+            ["cur_dial", "swap_opt", ["Ya era hora...",
+                ["¿Ya era hora?", ["next", 0, False]]
+            ]]
+        ]]
     ]),
 )
 

@@ -1,7 +1,7 @@
 from time import sleep
 from pprint import pprint
 from functools import reduce
-
+from copy import deepcopy
 import sys
 import os
 # Importaciones arriba
@@ -9,9 +9,7 @@ import os
 # Funciones globales abajo
 def check(cond, accion):
     if not cond:
-        print(
-            "Lo sentimos mucho; Hubo un error, traté de", accion
-        )
+        print("Lo sentimos mucho; Hubo un error, traté de", accion)
     return cond
 
 def check_type(item, tipos):
@@ -143,7 +141,14 @@ class DialYRes():
 
 # Un dialogo que es solamente es texto
 class Dial():
-    pass
+    def __init__(self, text, user_talks = None):
+        self.text = text
+        self.señal = " usuario ->>" if user_talks == True else " bot ->>"
+
+    def run(self):
+        print(self.señal, self.text)
+
+class Accion():
 
 # Una lista de dialogos
 class DialList():
@@ -157,6 +162,7 @@ class DialList():
         self.dials = list(dials)
         self.dial_list = self.dials
         self.create_acciones()
+        self.is_temp = False
 
     def print_text(self, result):
         is_user = False
@@ -172,17 +178,21 @@ class DialList():
     def create_acciones(self):
         for i, accion in self.acciones.items():
             self.acciones[i] = getattr(self, accion)
+        self.set_acciones_alt()
 
-    acciones_msg = {"print", "prints"}
-    acciones_sm = {"next_dial", "prev_dial", "cur_dial"}
-    acciones_tel = {"next", "back", "goto_next"}
-    opuestas = {
-        "add_dial": lambda result: self.acciones["del_dial"](result[:-1]),
-        "add_opt": lambda result: self.acciones["del_opt"](
-            *result[:-2], result[4][0]
-        )
-    }
+    acciones_msg = frozenset({"print", "prints"})
+    acciones_sm = frozenset({"next_dial", "prev_dial", "cur_dial"})
+    acciones_tel = frozenset({"next", "back", "goto_next"})
+    acciones_mega = frozenset({"add_dial", "swap_dial", "del_dial"})
+    acciones_mini = frozenset({"add_opt", "del_opt", "swap_opt", "change_dial"})
     # Los valores mas alla de los descritos son añadidos automaticamente.
+    def set_acciones_alt(self):
+        self.acciones_alt = frozenset(
+            set(self.acciones.keys()) - (
+                self.acciones_msg | \
+                self.acciones_sm | \
+                self.acciones_tel
+        ))
     acciones = {
         # Muestra un mensaje ["print", texto]
         "print": "print_text",
@@ -222,13 +232,16 @@ class DialList():
         "next_dial": "do_in_next_dial",
         # Pone la ubicación del dialogo previo al principio de los parametros:
         # Misma sintaxis
-        "prev_dial": "do_in_prev_dial"
+        "prev_dial": "do_in_prev_dial",
+        # hace cambios temporales, ["temp", args..]
+        "temp": "temp"
     }
     def eval(self, result): eval(result[1])
 
     def run(self, interval = None):
         self.interval = 1 if interval is None else interval
-        self.dial_list = self.dials
+        self.dial_list = self.dials[:]
+        self.backup_list = deepcopy(self.dials)
         result = self.run_dials(self.dial_list)
 
         while not "finalizado" in result:
@@ -262,7 +275,11 @@ class DialList():
     def ejecutar_accion(self, result):
         first = result[0]
         acts = self.acciones
-        ejecutar = lambda act: acts[act[0]](act)
+        def ejecutar (act):
+            if self.is_temp and act[0] in {"next", "back"}:
+                self.dials = deepcopy(self.backup_list)
+                self.is_temp = False
+            acts[act[0]](act)
         # El modelo de lista es: [acción, acción_params...]
         if check_type(result, list):
             if isinstance(first, list):
@@ -273,25 +290,25 @@ class DialList():
                 ejecutar(result)
             else: return None
 
-            if not result[0] in self.acciones_tel:
+            if not (result[0] in self.acciones_tel or result[0] == "temp"):
                 getattr(self,
                     "back" if self.dial.rewind else "goto_next"
                 )([None, result[-1]])
 
-
-    def buscar_dial(self, position, cur_i = None, from_cur_i = None):
+    def buscar_dial(self, position, cur_i = None, from_cur_i = None,
+    dial_list = None):
         pos = position
         match = False
-
+        dials = self.dials if dial_list == None else dial_list
         if isinstance(pos, int):
             if from_cur_i == True:
                 pos += cur_i
 
-            if check_i(pos, self.dials):
-                match = self.dials[pos]
+            if check_i(pos, dials):
+                match = dials[pos]
 
         elif isinstance(pos, str):
-            matches = list(filter(lambda el: el.dial, self.dials))
+            matches = list(filter(lambda el: el.dial, dials))
 
             if len(matches) == 1:
                 match = matches[0]
@@ -304,7 +321,7 @@ class DialList():
         elif isinstance(pos, DialYRes):
             match = pos
 
-        pos = self.dials.index(match)
+        pos = dials.index(match)
         return [match, pos]
 
     def es_dial(self, dial):
@@ -319,52 +336,51 @@ class DialList():
         if dial[0]:
             self.dial_list = self.dials[dial[1]:]
 
-    def add_option(self, result):
+    def add_option(self, result, dials = None):
         [action, pos, from_cur_i, opt, cur_i] = result
-
-        dial = self.buscar_dial(pos, cur_i, from_cur_i)[0]
+        dial = self.buscar_dial(pos, cur_i, from_cur_i, dials)[0]
         if dial: dial.add_opt(opt)
 
-    def del_option(self, result):
+    def del_option(self, result, dials = None):
         [action, pos, from_cur_i, opt_pos, cur_i] = result
 
-        dial = self.buscar_dial(pos, cur_i, from_cur_i)
+        dial = self.buscar_dial(pos, cur_i, from_cur_i, dials)
         if dial:
             return dial.del_opt(opt_pos)
 
-    def swap_option(self, result):
+    def swap_option(self, result, dials = None):
         # opt = [opt_pos, opt_content]
         [action, pos, from_cur_i, opt, cur_i] = result
 
-        dial = self.buscar_dial(pos, cur_i, from_cur_i)[0]
+        dial = self.buscar_dial(pos, cur_i, from_cur_i, dials)[0]
         if dial:
             return dial.swap_opt(*opt)
 
-    def add_dial(self, result, temp=None):
+    def add_dial(self, result, dials = None):
         [action, pos, from_cur_i, dial, cur_i] = result
-
-        dial_2 = self.buscar_dial(pos, cur_i, from_cur_i)
+        dials_2 = self.dials if dials == None else dials
+        dial_2 = self.buscar_dial(pos, cur_i, from_cur_i, dials)
         if dial_2[0] and self.es_dial(dial):
-            self.dials.insert(dial_2[1], dial)
+            dials_2.insert(dial_2[1], dial)
 
-    def del_dial(self, result):
+    def del_dial(self, result, dials = None):
         [action, pos, from_cur_i, cur_i] = result
-        dial, pos = self.buscar_dial(pos, cur_i, from_cur_i)
-
+        dial, pos = self.buscar_dial(pos, cur_i, from_cur_i, dials)
+        dials_2 = self.dials if dials == None else dials
         if dial:
-            self.dials.remove(dial)
+            dials_2.remove(dial)
             return [dial, pos]
 
-    def swap_dial(self, result):
+    def swap_dial(self, result, dials = None):
         [action, pos, from_cur_i, dial, cur_i] = result
-        deleted_dial = self.del_dial(action, pos, from_cur_i, cur_i)
-        self.add_dial(result)
+        deleted_dial = self.del_dial([action, pos, from_cur_i, cur_i], dials)
+        self.add_dial(result, dials)
         return deleted_dial
 
-    def change_dial(self, result):
+    def change_dial(self, result, dials = None):
         [action, dial_pos, from_cur_i, attr_pos, new_val, cur_i] = result
 
-        dial = self.buscar_dial(dial_pos, cur_i, from_cur_i)[0]
+        dial = self.buscar_dial(dial_pos, cur_i, from_cur_i, dials)[0]
         if dial: dial.change_dial(new_val, attr_pos)
 
     def back(self, result):
@@ -385,12 +401,8 @@ class DialList():
     def do_in_x_dial(self, result, mod):
         [accion, accion_2, *params] = result
         cur_i = params[-1]
-        invalid_acciones = [
-            *self.acciones_tel,
-            *self.acciones_sm,
-            *self.acciones_msg
-        ]
-        if accion_2 in self.acciones and not accion_2 in invalid_acciones:
+
+        if accion_2 in self.acciones_alt:
             self.acciones[accion_2]([None, cur_i + mod, False, *params])
 
     def do_in_cur_dial(self, result): self.do_in_x_dial(result, 0)
@@ -401,14 +413,24 @@ class DialList():
 
     def temp(self, result):
         [accion, accion_2, *params] = result
+        self.backup_list = deepcopy(self.dials)
+        self.is_temp = True
+        if accion_2 in (self.acciones_alt | self.acciones_sm):
+            self.acciones[accion_2]([None, *params])
+
+    def multiple_dials(self, result):
+        [accion, pos, *dials] = result
+        cur_i = dials.pop(-1)
+        for dial in dials:
+
 
 # Programas para testear y o correr programa abajo
 dials = DialList(
     DialYRes("¿patata o boniato?", [
         ["patata", "¡que gran eleccion!"],
-        ["boniato", [["cur_dial", "swap_opt", ["boniato", [
+        ["boniato", [["temp", "cur_dial", "swap_opt", ["boniato", [
                 "te dije que me gusta el boniato", [
-                        ["next_dial", "add_dial", DialYRes("¿Encerio?", [
+                        ["temp", "next_dial", "add_dial", DialYRes("¿Encerio?",[
                                 ["si", [
                                     ["prints", ["..."], ["..."]],
                                     ["next", -1, False]

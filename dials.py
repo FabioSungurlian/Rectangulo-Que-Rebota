@@ -149,7 +149,7 @@ class Dial():
         print(self.señal, self.text)
 
 class Accion():
-
+    pass
 # Una lista de dialogos
 class DialList():
     def __getitem__(self, key):
@@ -422,7 +422,7 @@ class DialList():
         [accion, pos, *dials] = result
         cur_i = dials.pop(-1)
         for dial in dials:
-
+            pass
 
 # Programas para testear y o correr programa abajo
 dials = DialList(

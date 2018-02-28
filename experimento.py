@@ -15,8 +15,7 @@ cols = {
     "fondo": pygame.Color(245, 245, 245),
     "rect": pygame.Color(105, 118, 140),
     "título": {
-        "fuente": pygame.Color(226, 226, 226),
-        "fondo": pygame.Color(12, 73, 6)
+        "fuente": pygame.Color(50, 50, 50)
     },
     "tiempo": {
         "fuente": pygame.Color(50, 50, 50),
@@ -28,13 +27,27 @@ cols = {
         "right": pygame.Color(150, 150, 150),
         "bottom": pygame.Color(20, 20, 20),
         "left": pygame.Color(150, 150, 150)
+    },
+    "info_text": {
+        "fuente": pygame.Color(50, 50, 50),
+        "fondo": pygame.Color(157, 163, 204),
+        "borde": pygame.Color(100, 100, 100)
     }
 }
 win = [1000, 750]
 lejos = 200
+rectangulos_rebotones = []
+info_text = [
+    "                          Bienvenido a mi experimento",
+    "● Puedes arrastrar a la vibora moviendo el mouse.",
+    "● Puedes intentar obligarla a atravesar objetos que no debería de",
+    "atravesar y observar como se niega.",
+    "● ¡Observala rebotar contra la ventana y los obstaculos!",
+    "● ¡Se contrae!"
+]
 # Clases
 #------------------------------------------------------------------------------+
-# Rectangulo                                                                   |
+# Rectangulo: un rectangulo que rebota                                         |
 #-----------------------------------------------------------------------------+
 class Rectangulo:
     def __getitem__(self, key): return getattr(self, key)
@@ -64,24 +77,35 @@ class Rectangulo:
             int(self.pos[1]),
             *self.dim
         )
+        self.obstaculos = [
+            surfs["tiempo"],
+            surfs["text"],
+            surfs["text_border"]
+        ]
+        self.colliding_with = None
         self.surfs["rebotadores"][self.name] = self.rect
         self.pre_follow_rect = pre_follow_rect
+        rectangulos_rebotones.append(self)
+
     # Representa unas cordenadas X y Y que no pueden ser superadas por las de pos.
     def get_max_pos(self): return [win[0] - self.dim[0], win[1] - self.dim[1]]
 
+    # Hace que si el rectangulo vaya hacía la izquierda, vaya hacia la derecha.
     def girar(self):
         self.hacia_der = not self.hacia_der
 
+    # Elije una posicion random en el comienzo.
     def initial_pos(self):
         self.pos = [
             randint(10, self.max_pos[0]),
             randint(10, self.max_pos[1])
         ]
 
+    # ¿Como hago para acercarme a un punto pero solo si x es cierto?
     def acercarse(self, hacerSi, dist, job = None):
         if hacerSi:
             # Funciona porque la distancia puede ser positiva o negativa
-            divisor = 500 / (self.vel * len(self.surfs["rebotadores"]))
+            divisor = 400 / (self.vel * len(rectangulos_rebotones))
             negative_pos = [dist["x"] < 0, dist["y"] < 0]
             pos_alt = [
                 -1 if dist["x"] < 0 else 1,
@@ -93,6 +117,9 @@ class Rectangulo:
 
         elif sched.get_job(job) != None: sched.remove_job(job)
 
+    # crea dos listas que son puntos con los que se puede corroborar si el
+    # rectangulo estaría atorado si estubiese un paso a la izquierda o hacía la
+    # derecha.
     def get_unreal_collider_points(self, surf):
         alts = (self.dim[0] / 5, self.dim[1] / 5)
         points = [
@@ -133,18 +160,22 @@ class Rectangulo:
             i += 1
         return points
 
+    # ¿Estoy atorado?
     def atorado(self, self_surf, obstacle):
         collide = [False, False]
-        i = 0
-        for pointList in self.get_unreal_collider_points(self_surf):
+
+        for i, pointList in enumerate(self.get_unreal_collider_points(self_surf)):
             for point in pointList:
                 if obstacle.collidepoint(point):
                     collide[i] = True
                     break
-            i += 1
-
+        if collide[0] and collide[1]:
+            self.colliding_with = obstacle
+        elif self.colliding_with == obstacle:
+            self.colliding_with = None
         return collide[0] and collide[1]
 
+    # Se mueve a la izquierda o hacia la derecha.
     def moverse(self):
         if self.hacia_der and self.pos[0] <= (self.max_pos[0] - self.vel):
             self.pos[0] += self.vel
@@ -153,6 +184,8 @@ class Rectangulo:
         else:
             self.girar()
 
+    # La función que crea el intervalo que se acerca al centro de la pantalla
+    # cuando está atorado.
     def invocador_atorado_job(self, condicional):
         job = self.interval_name("atorado_job")
         if condicional and sched.get_job(job) == None:
@@ -161,8 +194,8 @@ class Rectangulo:
                     condicional,
                     Dist(
                         *self.rect.center,
-                        win[0] / 2,
-                        win[1] / 2
+                        win[0] - self.colliding_with.centerx,
+                        win[1] - self.colliding_with.centery
                     ),
                     job
                 ),
@@ -175,6 +208,8 @@ class Rectangulo:
             sched.remove_job(job)
         return False
 
+    # Se asegura de acercarse a su objetivo si esta demasiado lejos y rebotar
+    # cuando choca contra un obstaculo.
     def lejos_o_choque(self):
 
         esta_lejos = lejos < self.dist["real"]
@@ -185,10 +220,9 @@ class Rectangulo:
         muy_lejos = muy_lejos[0] and muy_lejos[1]
         job = self.interval_name("muy_lejos_job")
 
-        chocó = self.rect.colliderect(
-            self.surfs["tiempo"]) or \
-            self.rect.colliderect(self.surfs["título"]
-        )
+        chocó = any([
+            self.rect.colliderect(obstaculo) for obstaculo in self.obstaculos
+        ])
 
         #for rebotador in self.surfs["rebotadores"].values():
         #    if self.rect.colliderect(rebotador):
@@ -210,6 +244,7 @@ class Rectangulo:
             sched.remove_job(job)
         return False
 
+    # Crea el rectangulo, necesita estar antes de la funcion maneger.
     def pos_maneger(self):
         self.rect = pygame.Rect(
             int(self.pos[0]),
@@ -218,8 +253,10 @@ class Rectangulo:
         )
         return self
 
+    # Cambía la posicion del rectangulo y crea el efecto 3D
     def maneger(self, ventana):
         surfs = self.surfs
+
         self.follow_rect = self.pre_follow_rect()
         self.rect = pygame.Rect(
             int(self.pos[0]),
@@ -257,27 +294,22 @@ class Rectangulo:
         )
 
         # todo hasta "pygame.update()" configura el rebote
-        atorado = self.atorado(
-            self.rect,
-            surfs["título"]
-        )  or self.atorado(
-                self.rect,
-                surfs["tiempo"]
-        )
-
+        atorado = any([
+            self.atorado(self.rect, obstaculo) for obstaculo in self.obstaculos
+        ])
 
         atorado = self.invocador_atorado_job(atorado)
-
-        lejos_o_chocó = self.lejos_o_choque()
+        lejos_o_chocó = False if atorado else self.lejos_o_choque()
 
         # Hace que se mueva y rebote con la ventana
-        if not (lejos_o_chocó or atorado): self.moverse()
+        if not (lejos_o_chocó or atorado):
+            self.moverse()
 
     def interval_name(self, interval_name):
         return interval_name + " " + self.name
 
 #------------------------------------------------------------------------------+
-# dist                                                                         |
+# Dist: Un objeto que tiene distintos tipos de distancias                      |
 #-----------------------------------------------------------------------------+
 class Dist:
     def __getitem__(self, key): return getattr(self, key)
@@ -355,30 +387,59 @@ def game():
     # Configura variables locales que usan pygame.                             |
     #-------------------------------------------------------------------------+
     fuentes = {
-        "open_sans_lg": pygame.freetype.SysFont("Serif", 80),
-        "open_sans_md": pygame.freetype.SysFont("Serif", 40)
+        "open_sans_md": pygame.freetype.SysFont("Agency FB", 50, True),
+        "agency_fb_sm": pygame.freetype.SysFont("Agency FB", 25, True),
+        "calibri_sm": pygame.freetype.SysFont("Calibri", 16)
     }
+
     surfs = {
         "rect": pygame.Rect(0, 0, 100, 80),
         "rect1": pygame.Rect(100, 400, 50, 50),
-        "tiempo": pygame.Rect(win[0] - 100, win[1] - 60, 100, 60),
-        "título": pygame.Rect(
-            win[0] / 10 - 5,
-            win[1] / 20 - 5, 500, 85
-        ),
+        "tiempo": pygame.Rect(0, win[1] - 60, win[0], 60),
+        "text": pygame.Rect(20, win[1] - 300, win[0] / 12 * 6, 300 - 60),
         "rebotadores": {}
     }
+    surfs["text_border"] = pygame.Rect(
+        surfs["text"].left - 5,
+        surfs["text"].top - 5,
+        surfs["text"].width + 10,
+        surfs["text"].height + 5
+    )
+
     textos = {
         "título": [
-            fuentes["open_sans_lg"].render("Hola Mundo!!",
-            cols["título"]["fuente"])[0],
-            (win[0] / 10, win[1] / 20)
+            fuentes["open_sans_md"].render(
+                "Un rectángulo que rebota",
+                cols["título"]["fuente"]
+            )[0],
+            (win[0] / 10, win[1] - 50)
         ],
         "tiempo": [
             None,
-            (win[0] - 90, win[1] - 50)
-        ]
+            (win[0] - 100, win[1] - 50)
+        ],
+        "titulo_de_texto": [
+            fuentes["agency_fb_sm"].render(
+                info_text[0],
+                cols["info_text"]["fuente"]
+            )[0], (
+                surfs["text"].left + 20,
+                surfs["text"].top + 10
+            )
+        ],
     }
+    info_text_lines = {
+        "linea" + str(i): [
+            fuentes["calibri_sm"].render(
+                linea,
+                cols["info_text"]["fuente"]
+            )[0], (
+                surfs["text"].left + 20,
+                surfs["text"].top + 20 * i + 40
+            )
+        ] for i, linea in enumerate(info_text[1:])
+    }
+    textos = {**textos, **info_text_lines}
     #---------------------------------------------------------------------------
 
     #configura la ventana.
@@ -386,10 +447,13 @@ def game():
     pygame.display.set_caption("Hola Mundo!!!")
     pygame.mouse.set_cursor((8,8),(0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0))
 
+    # Crea los objetos Rectangulos
     rect_2 = Rectangulo(surfs, "rect_2", lambda: surfs["rect"])
     rect_3 = Rectangulo(surfs, "rect_3", lambda: surfs['rebotadores']['rect_2'])
     rect_4 = Rectangulo(surfs, "rect_4", lambda: surfs['rebotadores']['rect_3'])
     # Se mantiene escuchando para ver si hay algun evento.
+
+
     while True:
 
         # Prepara la ventana
@@ -397,29 +461,38 @@ def game():
 
         # Cronometro (resultados abajo a la derecha o en la coinsola)
         tiempo = int(pygame.time.get_ticks() // 1000)
-
-        pygame.draw.rect(ventana, cols["tiempo"]["borde"], surfs["tiempo"], 8)
-        pygame.draw.rect(ventana, cols["tiempo"]["fondo"], surfs["tiempo"])
-
+        formatted_tiempo = (
+            "0" * (4 - len( str(tiempo) ) ) if len(str(tiempo)) < 4 else ""
+        ) + str(tiempo)
         textos["tiempo"][0] = fuentes["open_sans_md"].render(
-            "0" * (4 - len( str(tiempo) ) ) + str(tiempo),
+            formatted_tiempo,
             cols["tiempo"]["fuente"]
         )[0]
 
-        # Prepara el título y su fondo
-        pygame.draw.rect(ventana, cols["título"]["fondo"], surfs["título"])
+        textos["tiempo"][1] = (
+            win[0]  - 10 - len(formatted_tiempo) * 22,
+            win[1] - 50
+        )
+        # La franja inferior
+        pygame.draw.rect(ventana, cols["tiempo"]["fondo"], surfs["tiempo"])
+        # Configura el texto
+        pygame.draw.rect(
+            ventana,
+            cols["info_text"]["borde"],
+            surfs["text_border"]
+        )
+        pygame.draw.rect(ventana, cols["info_text"]["fondo"], surfs["text"]),
 
         for texto in textos.values():
             ventana.blit(*texto)
 
         surfs["rect"].center = pygame.mouse.get_pos()
-
         # Configura el rectángulo rebotador.
-        rect_2.pos_maneger()
-        rect_3.pos_maneger()
-        rect_4.pos_maneger().maneger(ventana)
-        rect_3.maneger(ventana)
-        rect_2.maneger(ventana)
+        for rect in rectangulos_rebotones:
+            rect.pos_maneger()
+        for rect in reversed(rectangulos_rebotones):
+            rect.maneger(ventana)
+
         # Configura el rectángulo que sigue al cursor.
         pygame.draw.rect(ventana, cols["rect"], surfs["rect"])
 

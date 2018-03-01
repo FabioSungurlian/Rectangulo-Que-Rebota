@@ -4,6 +4,8 @@ from random import randint, random, choice
 from apscheduler.schedulers.background import BackgroundScheduler
 from math import hypot
 from copy import deepcopy
+from operator import sub
+import re
 # Importaciones arriba
 
 #configura apscheduler
@@ -38,10 +40,11 @@ win = [1000, 750]
 lejos = 200
 rectangulos_rebotones = []
 info_text = [
-    "                          Bienvenido a mi experimento",
+    "                         Bienvenido A Mi Experimento ",
+    "● Usa las flechas para mover el texto",
     "● Puedes arrastrar a la vibora moviendo el mouse.",
-    "● Puedes intentar obligarla a atravesar objetos que no debería de",
-    "atravesar y observar como se niega.",
+    ("● Puedes intentar obligarla a atravesar objetos que no debería de"
+    " atravesar y observar como se niega."),
     "● ¡Observala rebotar contra la ventana y los obstaculos!",
     "● ¡Se contrae!"
 ]
@@ -85,6 +88,7 @@ class Rectangulo:
         self.colliding_with = None
         self.surfs["rebotadores"][self.name] = self.rect
         self.pre_follow_rect = pre_follow_rect
+        self.estubo_atorado = False
         rectangulos_rebotones.append(self)
 
     # Representa unas cordenadas X y Y que no pueden ser superadas por las de pos.
@@ -171,8 +175,11 @@ class Rectangulo:
                     break
         if collide[0] and collide[1]:
             self.colliding_with = obstacle
-        elif self.colliding_with == obstacle:
-            self.colliding_with = None
+            self.estubo_atorado = True
+        else:
+            if self.colliding_with == obstacle:
+                self.colliding_with = None
+            self.estubo_atorado = False
         return collide[0] and collide[1]
 
     # Se mueve a la izquierda o hacia la derecha.
@@ -253,6 +260,12 @@ class Rectangulo:
         )
         return self
 
+    def do_once(self):
+        self.interval_secs = round(
+            self.pre_interval_secs * len(self.surfs["rebotadores"]),
+            6
+        )
+
     # Cambía la posicion del rectangulo y crea el efecto 3D
     def maneger(self, ventana):
         surfs = self.surfs
@@ -288,18 +301,15 @@ class Rectangulo:
 
         self.surfs = surfs
 
-        self.interval_secs = round(
-            self.pre_interval_secs * len(self.surfs["rebotadores"]),
-            6
-        )
-
+        estubo_atorado = True if self.estubo_atorado else False
         # todo hasta "pygame.update()" configura el rebote
         atorado = any([
             self.atorado(self.rect, obstaculo) for obstaculo in self.obstaculos
         ])
 
         atorado = self.invocador_atorado_job(atorado)
-        lejos_o_chocó = False if atorado else self.lejos_o_choque()
+        cond = atorado or estubo_atorado
+        lejos_o_chocó = False if cond else self.lejos_o_choque()
 
         # Hace que se mueva y rebote con la ventana
         if not (lejos_o_chocó or atorado):
@@ -399,12 +409,6 @@ def game():
         "text": pygame.Rect(20, win[1] - 300, win[0] / 12 * 6, 300 - 60),
         "rebotadores": {}
     }
-    surfs["text_border"] = pygame.Rect(
-        surfs["text"].left - 5,
-        surfs["text"].top - 5,
-        surfs["text"].width + 10,
-        surfs["text"].height + 5
-    )
 
     textos = {
         "título": [
@@ -418,7 +422,64 @@ def game():
             None,
             (win[0] - 100, win[1] - 50)
         ],
-        "titulo_de_texto": [
+    }
+
+    surfs["text_zone"] = pygame.Rect(
+        surfs["text"].left + 20,
+        surfs["text"].top + 40,
+        surfs["text"].width - 40,
+        surfs["text"].height - 60
+    )
+
+    text_width = surfs["text_zone"].width / 6.4
+    restart = True
+    while restart:
+        for i, line in enumerate(info_text):
+            long_char = re.compile("[ \\w\t●]")
+            short_char = re.compile("[\\.,;:'`]")
+            line_val = (
+                len(long_char.findall(line)) + \
+                len(short_char.findall(line)) / 2
+            )
+            if line_val > text_width:
+                splitted_line = line.split(" ")
+                words_val_sum = 0
+                digits_num_sum = 0
+                for word in splitted_line:
+                    long_char = re.compile("[ \\w\t]")
+                    short_char = re.compile("[\\.,;:'`]")
+                    word_val = len(long_char.findall(word))
+                    word_val += len(short_char.findall(word)) / 2
+                    if text_width - words_val_sum >= word_val + 1:
+                        digits_num_sum += 1 + len(word)
+                        words_val_sum += 1 + word_val
+                    else:
+                        info_text.remove(line)
+                        info_text.insert(i, line[:digits_num_sum - 1])
+                        info_text.insert(i + 1, line[digits_num_sum:])
+                        break
+                restart = True
+                break
+            restart = False
+
+    def create_texto():
+        nonlocal textos, fuentes, surfs
+        global info_text
+        surfs["text_border"] = pygame.Rect(
+            surfs["text"].left - 5,
+            surfs["text"].top - 5,
+            surfs["text"].width + 10,
+            surfs["text"].height + 5
+        )
+
+        surfs["text_zone"] = pygame.Rect(
+            surfs["text"].left + 20,
+            surfs["text"].top + 40,
+            surfs["text"].width - 40,
+            surfs["text"].height - 60
+        )
+
+        textos["titulo_de_texto"] = [
             fuentes["agency_fb_sm"].render(
                 info_text[0],
                 cols["info_text"]["fuente"]
@@ -426,20 +487,23 @@ def game():
                 surfs["text"].left + 20,
                 surfs["text"].top + 10
             )
-        ],
-    }
-    info_text_lines = {
-        "linea" + str(i): [
-            fuentes["calibri_sm"].render(
-                linea,
-                cols["info_text"]["fuente"]
-            )[0], (
-                surfs["text"].left + 20,
-                surfs["text"].top + 20 * i + 40
-            )
-        ] for i, linea in enumerate(info_text[1:])
-    }
-    textos = {**textos, **info_text_lines}
+        ]
+        info_text_lines = {}
+        for i, linea in enumerate(info_text[1:]):
+            line_name = "linea" + str(i)
+            line = {line_name: [
+                fuentes["calibri_sm"].render(
+                    linea,
+                    cols["info_text"]["fuente"]
+                )[0], (
+                    surfs["text_zone"].left,
+                    surfs["text_zone"].top + 20 * i
+                )
+            ]}
+            info_text_lines = {**info_text_lines, **line}
+        textos = {**textos, **info_text_lines}
+
+    create_texto()
     #---------------------------------------------------------------------------
 
     #configura la ventana.
@@ -453,7 +517,8 @@ def game():
     rect_4 = Rectangulo(surfs, "rect_4", lambda: surfs['rebotadores']['rect_3'])
     # Se mantiene escuchando para ver si hay algun evento.
 
-
+    for rect in rectangulos_rebotones:
+        rect.do_once()
     while True:
 
         # Prepara la ventana
@@ -482,9 +547,11 @@ def game():
             surfs["text_border"]
         )
         pygame.draw.rect(ventana, cols["info_text"]["fondo"], surfs["text"]),
-
-        for texto in textos.values():
-            ventana.blit(*texto)
+        should_appear = lambda: not ("linea" in name and \
+            texto[1][1] + 20 > surfs["text_zone"].bottom)
+        for name, texto in textos.items():
+            if should_appear():
+                ventana.blit(*texto)
 
         surfs["rect"].center = pygame.mouse.get_pos()
         # Configura el rectángulo rebotador.
@@ -503,6 +570,16 @@ def game():
                 sched.shutdown()
                 pygame.quit() # Detiene modulos
                 sys.exit() # Cierra ventana
+            if evento.type == KEYDOWN:
+                if evento.key in {K_UP, K_DOWN}:
+                    if evento.key == K_UP:
+                        surfs["text"].top -= 20
+                        surfs["text"].height += 20
+                    elif surfs["text"].height >= 60:
+                        surfs["text"].top += 20
+                        surfs["text"].height -= 20
+                    create_texto()
+
 
 
         pygame.display.update()
